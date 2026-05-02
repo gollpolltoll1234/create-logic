@@ -1,6 +1,8 @@
 # create-logic
 Mod for minecraft, adding own safe scripting language for Create automation.
 
+[![Modrinth](https://img.shields.io/badge/Modrinth-Create:_Logic-00AF5C)](https://modrinth.com/mod/create-logic)
+
 A create automation with using own programming language, naming "Metal". Place a computer, right click, enter code, press save, shift+right click for toggle run.
 
 # Coding: 
