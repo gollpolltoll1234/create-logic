@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern":[
+    "#$#",
+    "$@$",
+    "#$#"
+  ],
+  "key": {
+    "#": {
+      "item":"create:golden_sheet"
+    },
+    "@": {
+      "item":"minecraft:iron_block"
+    },
+    "$": {
+      "item":"minecraft:copper_block"
+    }
+  },
+  "result": {
+    "id": "ggg_create_logic:computer",
+    "count": 1
+  }
+}

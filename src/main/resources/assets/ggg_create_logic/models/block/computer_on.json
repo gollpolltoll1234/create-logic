@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "particle": "ggg_create_logic:block/computer_side",
+    "down": "ggg_create_logic:block/computer_side",
+    "up": "ggg_create_logic:block/computer_side",
+    "north": "ggg_create_logic:block/computer_face_activated",
+    "east": "ggg_create_logic:block/computer_side",
+    "south": "ggg_create_logic:block/computer_side",
+    "west": "ggg_create_logic:block/computer_side"
+  }
+}
