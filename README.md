@@ -55,7 +55,7 @@ MAKE_LOCAL_VAR(VAR_TYPE,#name,start_value); - making a local variable (local var
 
 ACCEPT_INVOKES(); - allow invoke non-reserved systems by integrations ONLY in INIT, for 0.0.4+ mod version
 
-# end of built-in functions
+**end of built-in functions**
 
 **Java Functions** (registered outside of a Metal):
 
@@ -97,7 +97,7 @@ POW(value,pow); - returns exponentiation of the value
 
 # end of Java Functions;
 
-**Tips**:
+# Tips:
 
 ADD,SUB, etc using ONLY in modification of value for example:
 
@@ -123,7 +123,7 @@ Current variable types: INT, DOUBLE, POWER, BOOL.
 
 TICK EntryPoint (System) running in the other thread 1000 times per second.
 
-**INTEGRATION**: 
+# INTEGRATION: 
 Since 0.0.4 you can call non-reserved systems from Computer Craft mod, its looks like: 
 Metal: SYSTEM(INIT): START; 
 ACCEPT_INVOKES(); 
@@ -157,9 +157,9 @@ if (metal.getOwner() instanceof ComputerBlockEntity be) {
 // be is computer
 }
 
-# call system:
+**call system**:
 metal.callSystem("YOUR_SYSTEM_NAME", args);
 
-# inject script:
+**inject script**:
 Metal.Script scr = new Metal.Script(RunContext.RUN,new Metal.Script.CodeBlock(Metal.Script.CodeBlockType.SYSTEM,"YOUR CODE HERE",0), metal, true);
 Metal.MetalVariable result = scr.execute(args, operationsLimit(long));
