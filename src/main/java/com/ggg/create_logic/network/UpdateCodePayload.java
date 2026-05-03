@@ -12,7 +12,6 @@ public record UpdateCodePayload(BlockPos pos, String code) implements CustomPack
 
     public static final Type<UpdateCodePayload> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(ModMain.MOD_ID, "update_code"));
 
-    // Кодек для автоматической сериализации
     public static final StreamCodec<FriendlyByteBuf, UpdateCodePayload> STREAM_CODEC = StreamCodec.composite(
             BlockPos.STREAM_CODEC, UpdateCodePayload::pos,
             ByteBufCodecs.stringUtf8(32767), UpdateCodePayload::code,
