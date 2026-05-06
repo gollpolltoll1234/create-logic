@@ -210,7 +210,10 @@ public class Metal {
             INIT_BLOCK.end();
             Script initScript = new Script(RunContext.INIT,INIT_BLOCK,this,false);
             try {
-                while (initScript.hasNext()) initScript.next();
+                while (initScript.hasNext() && initScript.getOperations() < 4000) initScript.next();
+                if (initScript.getOperations() >= 4000) {
+                    ModMain.LOGGER.warn("Too many operations in INIT!");
+                }
             } catch (Exception e) {
                 ModMain.LOGGER.error("Exception in Metal at Server Thread: " + e.getMessage());
             }
@@ -1121,8 +1124,11 @@ public class Metal {
                     return;
                 }
                 case "EXIT_STACK" -> {
-                    exitStack();
-                    return;
+                    if(exitStack())
+                        return;
+                    // old version caused infinite loop, deadly in INIT
+                    /*exitStack();
+                    return;*/
                 }
                 case "MAKE_LOCAL_VAR" -> {
                     if (head.args.size() < 3) break;
