@@ -138,6 +138,27 @@ public class Metal {
             this.name = "temp";
             setRawDouble(value);
         }
+        public MetalVariable(double value) {
+            this.type = VariableType.DOUBLE;
+            this.name = "temp";
+            doubleValue = value;
+        }
+        public MetalVariable(boolean value) {
+            this.type = VariableType.BOOL;
+            this.name = "temp";
+            this.boolValue = value;
+        }
+        public MetalVariable(MetalVariable variable) {
+            this.type = variable.getType();
+            this.name = "temp";
+            setRawDouble(variable.getAsRawDouble());
+        }
+        public static MetalVariable fromInt(int value) {
+            return new MetalVariable(VariableType.INT,value);
+        }
+        public static MetalVariable fromPower(int value) {
+            return new MetalVariable(VariableType.POWER,value);
+        }
         private void setName(String name) {
             this.name = name;
         }
@@ -366,8 +387,8 @@ public class Metal {
         }
         private MetalVariable evaluate(String expr) {
             String finalExpr = expr.trim();
-            if (finalExpr.equalsIgnoreCase("TRUE")) return new MetalVariable(VariableType.BOOL, 1);
-            if (finalExpr.equalsIgnoreCase("FALSE")) return new MetalVariable(VariableType.BOOL, 0);
+            if (finalExpr.equalsIgnoreCase("TRUE")) return new MetalVariable(true);
+            if (finalExpr.equalsIgnoreCase("FALSE")) return new MetalVariable(false);
             return new Object() {
                 int pos = -1, ch;
 
@@ -394,7 +415,7 @@ public class Metal {
                     for (;;) {
                         if (eat("||")) {
                             boolean res = x.asBool() || parseLogicalAnd().asBool();
-                            x = new MetalVariable(VariableType.BOOL, res ? 1 : 0);
+                            x = new MetalVariable(res);
                         } else return x;
                     }
                 }
@@ -403,7 +424,7 @@ public class Metal {
                     for (;;) {
                         if (eat("&&")) {
                             boolean res = x.asBool() && parseComparison().asBool();
-                            x = new MetalVariable(VariableType.BOOL, res ? 1 : 0);
+                            x = new MetalVariable(res);
                         } else return x;
                     }
                 }
@@ -418,7 +439,7 @@ public class Metal {
                         else if (eat("<"))  x = compare(x, parseExpression(), "<");
                         else if (eat("^")) {
                             boolean res = x.asBool() ^ parseExpression().asBool();
-                            x = new MetalVariable(VariableType.BOOL, res ? 1 : 0);
+                            x = new MetalVariable(res);
                         }
                         else return x;
                     }
@@ -426,23 +447,27 @@ public class Metal {
                 MetalVariable parseExpression() {
                     MetalVariable x = parseTerm();
                     for (;;) {
-                        if      (eat("+")) x = new MetalVariable(VariableType.DOUBLE, x.getAsRawDouble() + parseTerm().getAsRawDouble());
-                        else if (eat("-")) x = new MetalVariable(VariableType.DOUBLE, x.getAsRawDouble() - parseTerm().getAsRawDouble());
+                        if      (eat("+")) x = new MetalVariable(x.getAsRawDouble() + parseTerm().getAsRawDouble());
+                        else if (eat("-")) x = new MetalVariable(x.getAsRawDouble() - parseTerm().getAsRawDouble());
                         else return x;
                     }
                 }
                 MetalVariable parseTerm() {
                     MetalVariable x = parseFactor();
                     for (;;) {
-                        if      (eat("*")) x = new MetalVariable(VariableType.DOUBLE, x.getAsRawDouble() * parseFactor().getAsRawDouble());
-                        else if (eat("/")) x = new MetalVariable(VariableType.DOUBLE, x.getAsRawDouble() / parseFactor().getAsRawDouble());
+                        if      (eat("**")) x = new MetalVariable(Math.pow(x.getAsRawDouble(), parseFactor().getAsRawDouble()));
+                        else if (eat("*")) x = new MetalVariable(x.getAsRawDouble() * parseFactor().getAsRawDouble());
+                        else if (eat("/")) x = new MetalVariable(x.getAsRawDouble() / parseFactor().getAsRawDouble());
+                        else if (eat("%")) x = new MetalVariable(x.getAsRawDouble() % parseTerm().getAsRawDouble());
                         else return x;
                     }
                 }
                 MetalVariable parseFactor() {
-                    if (eat("!")) return new MetalVariable(VariableType.BOOL, parseFactor().asBool() ? 0 : 1);
+                    if (eat("!")) return new MetalVariable(!parseFactor().asBool());
                     if (eat("+")) return parseFactor();
-                    if (eat("-")) return new MetalVariable(VariableType.DOUBLE, -parseFactor().getAsRawDouble());
+                    if (eat("-")) return new MetalVariable(-parseFactor().getAsRawDouble());
+                    if (eat("TRUE")) return new MetalVariable(true);
+                    if (eat("FALSE")) return new MetalVariable(false);
                     MetalVariable x;
                     if (eat("(")) {
                         x = parseLogicalOr();
@@ -450,7 +475,7 @@ public class Metal {
                     } else if ((ch >= '0' && ch <= '9') || ch == '.') {
                         int startPos = this.pos;
                         while ((ch >= '0' && ch <= '9') || ch == '.') nextChar();
-                        x = new MetalVariable(VariableType.DOUBLE, Double.parseDouble(finalExpr.substring(startPos, this.pos)));
+                        x = new MetalVariable(Double.parseDouble(finalExpr.substring(startPos, this.pos)));
                     } else if (ch == '$' || ch == '#' || Character.isLetter(ch)) {
                         boolean isGlobalVar = ch == '$';
                         int startPos = this.pos;
@@ -477,15 +502,14 @@ public class Metal {
                             x = evaluateCompleteJFunction(name, evalArgs);
                             if (x == null) x = new MetalVariable(VariableType.BOOL, 0);
                         } else {
-                            if (isGlobalVar) x = host.VARIABLES.getOrDefault(name, new MetalVariable(VariableType.BOOL,0));
+                            if (isGlobalVar) x = host.VARIABLES.getOrDefault(name, new MetalVariable(0));
                             else {
                                 x = LOCAL_VARIABLES.getOrDefault(name, null);
-                                if (x == null) x = DYNAMIC_LOCAL_VARIABLES.getOrDefault(name, new MetalVariable(VariableType.BOOL, 0));
+                                if (x == null) x = DYNAMIC_LOCAL_VARIABLES.getOrDefault(name, new MetalVariable(0));
                             }
                         }
                     } else {
-                        ModMain.LOGGER.error("Unexpected char: " + (char)ch + " at pos " + pos);
-                        return new MetalVariable(VariableType.BOOL, 0);
+                        return new MetalVariable(false);
                     }
                     return x;
                 }
@@ -503,7 +527,7 @@ public class Metal {
                         case "<=" -> l <= r;
                         default -> false;
                     };
-                    return new MetalVariable(VariableType.BOOL, res ? 1 : 0);
+                    return new MetalVariable(res);
                 }
             }.parse();
         }
@@ -638,7 +662,7 @@ public class Metal {
         private final CodeBlock starter;
         private final RunContext context;
         private int currentAction = 0;
-        private int blockLength;
+        private final int blockLength;
         private int waitTicks = 0;
         public static class Bracket {
             public String content = "";
@@ -918,12 +942,34 @@ public class Metal {
                 default -> false;
             };
         }
+        private void bindArgsToSystem(Bracket head) {
+            if (head.args.size() < 2) return;
+            String name = head.args.getFirst();
+            if (host.ARGUMENT_MAP.containsKey(name) || isReservedSystem(name) || host.findSystemBlock(host.ROOT_BLOCK,name) == null) return;
+            List<AbstractMap.SimpleEntry<String,VariableType>> args = new ArrayList<>();
+            for (int index = 1; index < head.args.size(); index++) {
+                String arg = head.args.get(index);
+                int splitPos = arg.indexOf(":");
+                if (splitPos == -1) {
+                    args.add(new AbstractMap.SimpleEntry<>(arg,VariableType.DOUBLE));
+                } else if(splitPos + 1 < arg.length()) {
+                    String varStr = arg.substring(0,splitPos).trim();
+                    String typeStr = arg.substring(splitPos + 1).trim();
+                    VariableType type = VariableType.fromStr(typeStr);
+                    if (type == null) {
+                        type = VariableType.DOUBLE;
+                    }
+                    args.add(new AbstractMap.SimpleEntry<>(varStr,type));
+                }
+            }
+            host.ARGUMENT_MAP.put(name,args);
+        }
         public void next() {
             if (end) return;
             if (!hasNext()) return;
-            operations++;
             if (waitTicks > 0) {
                 waitTicks--;
+                operations++;
                 return;
             }
             int i = getSemicolonIndex(current.content, currentAction + 1);
@@ -969,9 +1015,9 @@ public class Metal {
             }
             if (isInvoke && cmd.equals("WAIT")) {
                 skip();
-                ModMain.LOGGER.info("Skipped WAIT bc its invoke");
                 return;
             }
+            operations++;
             switch (cmd) {
                 case "MAKE_VAR" -> {
                     if (context == RunContext.INIT) {
@@ -1006,7 +1052,7 @@ public class Metal {
                 }
                 case "ELSE" -> {
                     int ind = getBlockIfEndActionIndex();
-                    if (ind <= blockLength) currentAction = ind;
+                    if (ind <= blockLength && ind >= 0) currentAction = ind;
                 }
                 case "SYSTEM" -> {
                     String sysType = head.args.getFirst().toUpperCase();
@@ -1025,6 +1071,7 @@ public class Metal {
                         current.setReturnActionIndex(endIdx + 1);
                         current.addCodeBlock(target);
                     }
+                    bindArgsToSystem(head);
                 }
                 case "ADD" -> {
                     if (head.args.size() < 2) break;
@@ -1086,26 +1133,7 @@ public class Metal {
                     makeLocalVariable(name, new MetalVariable(type, val.getAsRawDouble()),true);
                 }
                 case "BIND_ARGS_TO_SYSTEM" -> {
-                    if (head.args.size() < 2) break;
-                    String name = head.args.getFirst();
-                    if (host.ARGUMENT_MAP.containsKey(name) || isReservedSystem(name) || host.findSystemBlock(host.ROOT_BLOCK,name) == null) break;
-                    List<AbstractMap.SimpleEntry<String,VariableType>> args = new ArrayList<>();
-                    for (int index = 1; index < head.args.size(); index++) {
-                        String arg = head.args.get(index);
-                        int splitPos = arg.indexOf(":");
-                        if (splitPos == -1) {
-                            args.add(new AbstractMap.SimpleEntry<>(arg,VariableType.DOUBLE));
-                        } else if(splitPos + 1 < arg.length()) {
-                            String varStr = arg.substring(0,splitPos).trim();
-                            String typeStr = arg.substring(splitPos + 1).trim();
-                            VariableType type = VariableType.fromStr(typeStr);
-                            if (type == null) {
-                                type = VariableType.DOUBLE;
-                            }
-                            args.add(new AbstractMap.SimpleEntry<>(varStr,type));
-                        }
-                    }
-                    host.ARGUMENT_MAP.put(name,args);
+                    bindArgsToSystem(head);
                 }
                 case "CALL_SYSTEM" -> {
                     if (head.args.isEmpty()) break;
