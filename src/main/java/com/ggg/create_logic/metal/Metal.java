@@ -1224,14 +1224,15 @@ public class Metal {
             DYNAMIC_LOCAL_VARIABLES.clear();
             currentAction = 0;
         }
-        public void exitStack(){
-            if (stack.isEmpty()) return;
+        public boolean exitStack(){
+            if (stack.isEmpty()) return false;
             StackPoint first = stack.getFirst();
             current = first.block();
             currentAction = first.startAction() + 1;
             LOCAL_VARIABLES = first.LOCAL_VARIABLES();
             DYNAMIC_LOCAL_VARIABLES = first.DYNAMIC_LOCAL_VARIABLES();
             stack.clear();
+            return true;
         }
         public boolean hasNext() {
             if (end) return false;
