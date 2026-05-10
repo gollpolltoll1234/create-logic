@@ -1,16 +1,10 @@
 package com.ggg.create_logic.metal;
 
 import com.ggg.create_logic.ModMain;
-import com.ggg.create_logic.blockentities.ComputerBlockEntity;
-import com.ggg.create_logic.redstone_link_custom.RedstoneLinkInjector;
-import com.simibubi.create.Create;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.Item;
 
+import java.lang.reflect.Constructor;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class Metal {
     private final Object owner;
@@ -138,6 +132,27 @@ public class Metal {
             this.name = "temp";
             setRawDouble(value);
         }
+        public MetalVariable(double value) {
+            this.type = VariableType.DOUBLE;
+            this.name = "temp";
+            doubleValue = value;
+        }
+        public MetalVariable(boolean value) {
+            this.type = VariableType.BOOL;
+            this.name = "temp";
+            this.boolValue = value;
+        }
+        public MetalVariable(MetalVariable variable) {
+            this.type = variable.getType();
+            this.name = "temp";
+            setRawDouble(variable.getAsRawDouble());
+        }
+        public static MetalVariable fromInt(int value) {
+            return new MetalVariable(VariableType.INT,value);
+        }
+        public static MetalVariable fromPower(int value) {
+            return new MetalVariable(VariableType.POWER,value);
+        }
         private void setName(String name) {
             this.name = name;
         }
@@ -182,6 +197,15 @@ public class Metal {
         if (ROOT_BLOCK == null) return;
         isRunning = true;
         ROOT_BLOCK.end();
+        for (String key : classMap.keySet()) {
+            try {
+                Class<? extends MetalModule> clazz = classMap.get(key);
+                Constructor<? extends MetalModule> constructor = clazz.getDeclaredConstructor(Metal.class);
+                modules.put(key,constructor.newInstance(this));
+            } catch (Exception e) {
+                ModMain.LOGGER.warn(e.getLocalizedMessage());
+            }
+        }
         Script rootScript = new Script(RunContext.GLOBAL,ROOT_BLOCK,this,false);
         while (rootScript.hasNext()) rootScript.next();
         INIT_BLOCK = findSystemBlock(ROOT_BLOCK,"INIT");
@@ -189,7 +213,10 @@ public class Metal {
             INIT_BLOCK.end();
             Script initScript = new Script(RunContext.INIT,INIT_BLOCK,this,false);
             try {
-                while (initScript.hasNext()) initScript.next();
+                while (initScript.hasNext() && initScript.getOperations() < 4000) initScript.next();
+                if (initScript.getOperations() >= 4000) {
+                    ModMain.LOGGER.warn("Too many operations in INIT!");
+                }
             } catch (Exception e) {
                 ModMain.LOGGER.error("Exception in Metal at Server Thread: " + e.getMessage());
             }
@@ -200,49 +227,24 @@ public class Metal {
             scriptsToAdd.add(TICK_SCRIPT);
         }
         tickRegistered.add(this);
+        for (MetalModule module : modules.values()){
+            module.onStart();
+        }
     }
     public void stop(){
         if (!isRunning) return;
         isRunning = false;
         if(TICK_SCRIPT != null)TICK_SCRIPT.end = true;
+        for (MetalModule module : modules.values()){
+            module.onStop();
+        }
         VARIABLES.clear();
         acceptInvokes = false;
-        if (owner instanceof ComputerBlockEntity be) {
-            for (Integer id : INJECTORS.keySet()) {
-                Create.REDSTONE_LINK_NETWORK_HANDLER.removeFromNetwork(be.getLevel(),getInjector(id));
-            }
-        }
-        INJECTORS.clear();
-        STORE.clear();
         ARGUMENT_MAP.clear();
+        modules.clear();
         if (!tickRegistered.remove(this)) ModMain.LOGGER.error("Cannot remove Metal object from tick listeners");
     }
-    private final Map<Integer, RedstoneLinkInjector> INJECTORS = new ConcurrentHashMap<>();
-    private final Map<Integer, AtomicInteger> STORE = new ConcurrentHashMap<>();
-    public void store(Integer key, Integer value) {
-        if (!hasStored(key)) STORE.put(key,new AtomicInteger(value));
-        else {
-            AtomicInteger integer = STORE.get(key);
-            integer.set(value);
-        }
-    }
-    public Integer getStored(Integer key) {
-        if (!hasStored(key)) return null;
-        return STORE.get(key).intValue();
-    }
-    public boolean hasStored(Integer key) {
-        return STORE.containsKey(key);
-    }
-    public boolean hasInjector(Integer key) {
-        return INJECTORS.containsKey(key);
-    }
-    public RedstoneLinkInjector getInjector(Integer key) {
-        if (!hasInjector(key)) return null;
-        return INJECTORS.get(key);
-    }
-    public void setInjector(Integer key,RedstoneLinkInjector injector) {
-        INJECTORS.put(key,injector);
-    }
+
     private static final List<Script> scriptList = new ArrayList<>();
     private static final List<Script> scriptsToRemove = new ArrayList<>();
     private static final List<Script> scriptsToAdd = new ArrayList<>();
@@ -250,29 +252,18 @@ public class Metal {
     private static Thread runThread = null;
     private static boolean isStarted = false;
     private boolean acceptInvokes = false;
+    private Map<String,MetalModule> modules = new ConcurrentHashMap<>();
+    private static Map<String,Class<? extends MetalModule>> classMap = new HashMap<>();
     public boolean isAcceptInvokes(){
         return acceptInvokes;
     }
     private void tick(){
-        for (Integer key : INJECTORS.keySet()) {
-            RedstoneLinkInjector injector = getInjector(key);
-            if (!injector.isDirty()) continue;
-            if (hasStored(key)) {
-                if (injector.isListening()) {
-                    injector.markClean();
-                    continue;
-                }
-                Integer value = getStored(key);
-                if (value == injector.getLastSend()) {
-                    injector.markClean();
-                    continue;
-                }
-                injector.notifySignalChange();
-            }
+        for (MetalModule module : modules.values()) {
+            module.onServerTick();
         }
     }
     public static void tickAll(){
-        for (Metal metal : tickRegistered) {
+        if(isStarted) for (Metal metal : tickRegistered) {
             metal.tick();
         }
     }
@@ -280,7 +271,7 @@ public class Metal {
         if (isStarted) return;
         isStarted = true;
         runThread = new Thread(() -> {
-            ModMain.LOGGER.info("Metal THREAD was been started!");
+            ModMain.LOGGER.info("Metal Thread was been started!");
             while (isStarted) {
                 for (Script script : scriptList) {
                     if (script.end) {
@@ -289,7 +280,7 @@ public class Metal {
                         try {
                             script.next();
                         } catch (Exception e) {
-                            ModMain.LOGGER.error("Error in Metal THREAD: " + e.getMessage());
+                            ModMain.LOGGER.error("Error in Metal Thread: " + e.getMessage());
                             script.skip();
                         }
                     } else {
@@ -315,10 +306,20 @@ public class Metal {
                     ModMain.LOGGER.error(e.toString());
                 }
             }
-            ModMain.LOGGER.info("Metal THREAD was been terminated!");
+            scriptList.clear();
+            scriptsToAdd.clear();
+            scriptsToRemove.clear();
+            ModMain.LOGGER.info("Metal Thread was been terminated!");
         });
         runThread.setName("Metal-Thread");
         runThread.start();
+    }
+    public static void terminate(){
+        isStarted = false;
+        tickRegistered.clear();
+    }
+    public static Set<String> getJavaFunctions(){
+        return JAVA_FUNCTIONS.keySet();
     }
     public MetalVariable callSystem(String name, List<MetalVariable> args) {
         if (!acceptInvokes) return null;
@@ -342,8 +343,43 @@ public class Metal {
         }
         return script.execute(arguments,1500);
     }
-    public static void terminate(){
-        isStarted = false;
+    public static <T extends MetalModule> void registerModule(String name, Class<T> clazz) {
+        if (classMap.containsKey(name)) return;
+        classMap.put(name, clazz);
+    }
+    public MetalModule getModule(String name) {
+        return modules.getOrDefault(name,null);
+    }
+    public static class MetalModule {
+        public MetalModule(Metal metal) {
+            this.metal = metal;
+        }
+        protected Metal metal;
+        protected void onNext(Script script,String cmd, Script.Bracket head){}
+        protected boolean handleAdvanced(Script script,String cmd, Script.Bracket head) {
+            return false;
+        }
+        protected void onServerTick(){}
+        protected void onStop(){}
+        protected void onStart(){}
+        protected final MetalVariable evaluate(Script script,String expr) {
+            return script.evaluate(expr);
+        }
+        protected final Map<String,MetalVariable> getGlobalVariables(){
+            return metal.VARIABLES;
+        }
+        protected final Map<String,MetalVariable> getLocalVariables(Script script){
+            return script.LOCAL_VARIABLES;
+        }
+        protected final Map<String,MetalVariable> getDynamicLocalVariables(Script script){
+            return script.DYNAMIC_LOCAL_VARIABLES;
+        }
+        protected final MetalVariable getVariable(Script script,String name) {
+            return script.getVariable(name);
+        }
+        protected final void putVariable(String name, MetalVariable var) {
+            metal.putVariable(name,var);
+        }
     }
     public static class Script {
         private final boolean isInvoke;
@@ -366,8 +402,8 @@ public class Metal {
         }
         private MetalVariable evaluate(String expr) {
             String finalExpr = expr.trim();
-            if (finalExpr.equalsIgnoreCase("TRUE")) return new MetalVariable(VariableType.BOOL, 1);
-            if (finalExpr.equalsIgnoreCase("FALSE")) return new MetalVariable(VariableType.BOOL, 0);
+            if (finalExpr.equalsIgnoreCase("TRUE")) return new MetalVariable(true);
+            if (finalExpr.equalsIgnoreCase("FALSE")) return new MetalVariable(false);
             return new Object() {
                 int pos = -1, ch;
 
@@ -394,7 +430,7 @@ public class Metal {
                     for (;;) {
                         if (eat("||")) {
                             boolean res = x.asBool() || parseLogicalAnd().asBool();
-                            x = new MetalVariable(VariableType.BOOL, res ? 1 : 0);
+                            x = new MetalVariable(res);
                         } else return x;
                     }
                 }
@@ -403,7 +439,7 @@ public class Metal {
                     for (;;) {
                         if (eat("&&")) {
                             boolean res = x.asBool() && parseComparison().asBool();
-                            x = new MetalVariable(VariableType.BOOL, res ? 1 : 0);
+                            x = new MetalVariable(res);
                         } else return x;
                     }
                 }
@@ -418,7 +454,7 @@ public class Metal {
                         else if (eat("<"))  x = compare(x, parseExpression(), "<");
                         else if (eat("^")) {
                             boolean res = x.asBool() ^ parseExpression().asBool();
-                            x = new MetalVariable(VariableType.BOOL, res ? 1 : 0);
+                            x = new MetalVariable(res);
                         }
                         else return x;
                     }
@@ -426,23 +462,27 @@ public class Metal {
                 MetalVariable parseExpression() {
                     MetalVariable x = parseTerm();
                     for (;;) {
-                        if      (eat("+")) x = new MetalVariable(VariableType.DOUBLE, x.getAsRawDouble() + parseTerm().getAsRawDouble());
-                        else if (eat("-")) x = new MetalVariable(VariableType.DOUBLE, x.getAsRawDouble() - parseTerm().getAsRawDouble());
+                        if      (eat("+")) x = new MetalVariable(x.getAsRawDouble() + parseTerm().getAsRawDouble());
+                        else if (eat("-")) x = new MetalVariable(x.getAsRawDouble() - parseTerm().getAsRawDouble());
                         else return x;
                     }
                 }
                 MetalVariable parseTerm() {
                     MetalVariable x = parseFactor();
                     for (;;) {
-                        if      (eat("*")) x = new MetalVariable(VariableType.DOUBLE, x.getAsRawDouble() * parseFactor().getAsRawDouble());
-                        else if (eat("/")) x = new MetalVariable(VariableType.DOUBLE, x.getAsRawDouble() / parseFactor().getAsRawDouble());
+                        if      (eat("**")) x = new MetalVariable(Math.pow(x.getAsRawDouble(), parseFactor().getAsRawDouble()));
+                        else if (eat("*")) x = new MetalVariable(x.getAsRawDouble() * parseFactor().getAsRawDouble());
+                        else if (eat("/")) x = new MetalVariable(x.getAsRawDouble() / parseFactor().getAsRawDouble());
+                        else if (eat("%")) x = new MetalVariable(x.getAsRawDouble() % parseTerm().getAsRawDouble());
                         else return x;
                     }
                 }
                 MetalVariable parseFactor() {
-                    if (eat("!")) return new MetalVariable(VariableType.BOOL, parseFactor().asBool() ? 0 : 1);
+                    if (eat("!")) return new MetalVariable(!parseFactor().asBool());
                     if (eat("+")) return parseFactor();
-                    if (eat("-")) return new MetalVariable(VariableType.DOUBLE, -parseFactor().getAsRawDouble());
+                    if (eat("-")) return new MetalVariable(-parseFactor().getAsRawDouble());
+                    if (eat("TRUE")) return new MetalVariable(true);
+                    if (eat("FALSE")) return new MetalVariable(false);
                     MetalVariable x;
                     if (eat("(")) {
                         x = parseLogicalOr();
@@ -450,7 +490,7 @@ public class Metal {
                     } else if ((ch >= '0' && ch <= '9') || ch == '.') {
                         int startPos = this.pos;
                         while ((ch >= '0' && ch <= '9') || ch == '.') nextChar();
-                        x = new MetalVariable(VariableType.DOUBLE, Double.parseDouble(finalExpr.substring(startPos, this.pos)));
+                        x = new MetalVariable(Double.parseDouble(finalExpr.substring(startPos, this.pos)));
                     } else if (ch == '$' || ch == '#' || Character.isLetter(ch)) {
                         boolean isGlobalVar = ch == '$';
                         int startPos = this.pos;
@@ -477,15 +517,14 @@ public class Metal {
                             x = evaluateCompleteJFunction(name, evalArgs);
                             if (x == null) x = new MetalVariable(VariableType.BOOL, 0);
                         } else {
-                            if (isGlobalVar) x = host.VARIABLES.getOrDefault(name, new MetalVariable(VariableType.BOOL,0));
+                            if (isGlobalVar) x = host.VARIABLES.getOrDefault(name, new MetalVariable(0));
                             else {
                                 x = LOCAL_VARIABLES.getOrDefault(name, null);
-                                if (x == null) x = DYNAMIC_LOCAL_VARIABLES.getOrDefault(name, new MetalVariable(VariableType.BOOL, 0));
+                                if (x == null) x = DYNAMIC_LOCAL_VARIABLES.getOrDefault(name, new MetalVariable(0));
                             }
                         }
                     } else {
-                        ModMain.LOGGER.error("Unexpected char: " + (char)ch + " at pos " + pos);
-                        return new MetalVariable(VariableType.BOOL, 0);
+                        return new MetalVariable(false);
                     }
                     return x;
                 }
@@ -503,7 +542,7 @@ public class Metal {
                         case "<=" -> l <= r;
                         default -> false;
                     };
-                    return new MetalVariable(VariableType.BOOL, res ? 1 : 0);
+                    return new MetalVariable(res);
                 }
             }.parse();
         }
@@ -638,7 +677,7 @@ public class Metal {
         private final CodeBlock starter;
         private final RunContext context;
         private int currentAction = 0;
-        private int blockLength;
+        private final int blockLength;
         private int waitTicks = 0;
         public static class Bracket {
             public String content = "";
@@ -918,12 +957,34 @@ public class Metal {
                 default -> false;
             };
         }
+        private void bindArgsToSystem(Bracket head) {
+            if (head.args.size() < 2) return;
+            String name = head.args.getFirst();
+            if (host.ARGUMENT_MAP.containsKey(name) || isReservedSystem(name) || host.findSystemBlock(host.ROOT_BLOCK,name) == null) return;
+            List<AbstractMap.SimpleEntry<String,VariableType>> args = new ArrayList<>();
+            for (int index = 1; index < head.args.size(); index++) {
+                String arg = head.args.get(index);
+                int splitPos = arg.indexOf(":");
+                if (splitPos == -1) {
+                    args.add(new AbstractMap.SimpleEntry<>(arg,VariableType.DOUBLE));
+                } else if(splitPos + 1 < arg.length()) {
+                    String varStr = arg.substring(0,splitPos).trim();
+                    String typeStr = arg.substring(splitPos + 1).trim();
+                    VariableType type = VariableType.fromStr(typeStr);
+                    if (type == null) {
+                        type = VariableType.DOUBLE;
+                    }
+                    args.add(new AbstractMap.SimpleEntry<>(varStr,type));
+                }
+            }
+            host.ARGUMENT_MAP.put(name,args);
+        }
         public void next() {
             if (end) return;
             if (!hasNext()) return;
-            operations++;
             if (waitTicks > 0) {
                 waitTicks--;
+                operations++;
                 return;
             }
             int i = getSemicolonIndex(current.content, currentAction + 1);
@@ -969,8 +1030,17 @@ public class Metal {
             }
             if (isInvoke && cmd.equals("WAIT")) {
                 skip();
-                ModMain.LOGGER.info("Skipped WAIT bc its invoke");
                 return;
+            }
+            operations++;
+            for (MetalModule module : host.modules.values()) {
+                module.onNext(this,cmd,head);
+            }
+            for (MetalModule module : host.modules.values()) {
+                if(module.handleAdvanced(this,cmd,head)){
+                    currentAction++;
+                    return;
+                }
             }
             switch (cmd) {
                 case "MAKE_VAR" -> {
@@ -981,14 +1051,6 @@ public class Metal {
                         String name = head.args.get(1);
                         MetalVariable val = evaluate(head.headArgs.get(2));
                         host.putVariable(name, new MetalVariable(type, val.getAsRawDouble()));
-                    }
-                }
-                case "MAKE_ITEM_VAR" -> {
-                    if (context == RunContext.INIT) {
-                        if (head.args.size() < 2) break;
-                        String name = head.args.getFirst();
-                        String itemId = head.args.get(1).trim();
-                        host.putVariable(name, new MetalVariable(VariableType.INT, getItemId(itemId)));
                     }
                 }
                 case "SET" -> {
@@ -1006,7 +1068,7 @@ public class Metal {
                 }
                 case "ELSE" -> {
                     int ind = getBlockIfEndActionIndex();
-                    if (ind <= blockLength) currentAction = ind;
+                    if (ind <= blockLength && ind >= 0) currentAction = ind;
                 }
                 case "SYSTEM" -> {
                     String sysType = head.args.getFirst().toUpperCase();
@@ -1025,6 +1087,7 @@ public class Metal {
                         current.setReturnActionIndex(endIdx + 1);
                         current.addCodeBlock(target);
                     }
+                    bindArgsToSystem(head);
                 }
                 case "ADD" -> {
                     if (head.args.size() < 2) break;
@@ -1074,8 +1137,8 @@ public class Metal {
                     return;
                 }
                 case "EXIT_STACK" -> {
-                    exitStack();
-                    return;
+                    if(exitStack())
+                        return;
                 }
                 case "MAKE_LOCAL_VAR" -> {
                     if (head.args.size() < 3) break;
@@ -1086,26 +1149,7 @@ public class Metal {
                     makeLocalVariable(name, new MetalVariable(type, val.getAsRawDouble()),true);
                 }
                 case "BIND_ARGS_TO_SYSTEM" -> {
-                    if (head.args.size() < 2) break;
-                    String name = head.args.getFirst();
-                    if (host.ARGUMENT_MAP.containsKey(name) || isReservedSystem(name) || host.findSystemBlock(host.ROOT_BLOCK,name) == null) break;
-                    List<AbstractMap.SimpleEntry<String,VariableType>> args = new ArrayList<>();
-                    for (int index = 1; index < head.args.size(); index++) {
-                        String arg = head.args.get(index);
-                        int splitPos = arg.indexOf(":");
-                        if (splitPos == -1) {
-                            args.add(new AbstractMap.SimpleEntry<>(arg,VariableType.DOUBLE));
-                        } else if(splitPos + 1 < arg.length()) {
-                            String varStr = arg.substring(0,splitPos).trim();
-                            String typeStr = arg.substring(splitPos + 1).trim();
-                            VariableType type = VariableType.fromStr(typeStr);
-                            if (type == null) {
-                                type = VariableType.DOUBLE;
-                            }
-                            args.add(new AbstractMap.SimpleEntry<>(varStr,type));
-                        }
-                    }
-                    host.ARGUMENT_MAP.put(name,args);
+                    bindArgsToSystem(head);
                 }
                 case "CALL_SYSTEM" -> {
                     if (head.args.isEmpty()) break;
@@ -1122,7 +1166,7 @@ public class Metal {
                             MetalVariable variable;
                             VariableType regType = requires.get(index).getValue();
                             if (index + 1 < head.args.size()) {
-                                MetalVariable provided = evaluate(head.args.get(index + 1));
+                                MetalVariable provided = evaluate(head.headArgs.get(index + 1));
                                 if (provided.isA(regType)) variable = provided;
                                 else variable = new MetalVariable(regType,provided.getAsRawDouble());
                             } else variable = new MetalVariable(regType,0);
@@ -1149,21 +1193,10 @@ public class Metal {
                     host.acceptInvokes = true;
                 }
                 case "ABORT" -> end = true;
-                default -> evaluateJFunction(cmd,head.args);
+                default -> evaluateJFunction(cmd, head.args);
             }
             currentAction++;
             if (!hasNext()) tryReturnByStack();
-        }
-        private int getItemId(String itemId) {
-            ResourceLocation resourceLocation = ResourceLocation.tryParse(itemId);
-            if (resourceLocation == null) {
-                resourceLocation = ResourceLocation.tryParse("minecraft:"+itemId);
-            }
-            if (resourceLocation == null) {
-                resourceLocation = ResourceLocation.withDefaultNamespace("air");
-            }
-            Item item = BuiltInRegistries.ITEM.get(resourceLocation);
-            return Item.getId(item);
         }
         private boolean tryReturnByStack(){
             if (!stack.isEmpty()) {
@@ -1190,14 +1223,15 @@ public class Metal {
             DYNAMIC_LOCAL_VARIABLES.clear();
             currentAction = 0;
         }
-        public void exitStack(){
-            if (stack.isEmpty()) return;
+        public boolean exitStack(){
+            if (stack.isEmpty()) return false;
             StackPoint first = stack.getFirst();
             current = first.block();
             currentAction = first.startAction() + 1;
             LOCAL_VARIABLES = first.LOCAL_VARIABLES();
             DYNAMIC_LOCAL_VARIABLES = first.DYNAMIC_LOCAL_VARIABLES();
             stack.clear();
+            return true;
         }
         public boolean hasNext() {
             if (end) return false;
