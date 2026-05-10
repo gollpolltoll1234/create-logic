@@ -168,6 +168,7 @@ Metal.MetalVariable result = scr.execute(args, operationsLimit(long));
 
 # Addons API: Modules
 - Since **0.0.6** version added Metal.MetalModule, there is API:
+
 - public class YourModuleName extends Metal.MetalModule {
 -  public YourModuleName(Metal metal) {
 -    super(metal);
@@ -189,6 +190,7 @@ Metal.MetalVariable result = scr.execute(args, operationsLimit(long));
 -    // function intercept, you can add or overwrite built-in functions: return true - intercept, false - continue
 -  }
 - }
+
 - MetalModule.evaluate(Script script,String expr) - protected method, wrapper to private Script.evaluate(String expr)
 - MetalModule.putVariable(String name, MetalVariable var) - protected method, wrapper to private Metal.putVariable(String name, MetalVariable var)
 - MetalModule.getVariable(Script script, String name) - protected method, wrapper to private Script.getVariable (auto global or local)
@@ -197,8 +199,9 @@ Metal.MetalVariable result = scr.execute(args, operationsLimit(long));
 - Map<String,MetalVariable> getGlobalVariables() - getter, Metal.VARIABLES (created by MAKE_VAR or MAKE_ITEM_VAR in INIT)
 
 registration:
+
 - // somewhere in static {...}
->Metal.registerModule("your_module_name",YourModuleName.class);
+- Metal.registerModule("your_module_name",YourModuleName.class);
 
 using in JFunctions or another modules, or somewhere else:
 
@@ -207,4 +210,5 @@ using in JFunctions or another modules, or somewhere else:
 -  // if you make method, for example, helloWorld() in your module
 -  yourModule.helloWorld();
 - }
+
 > Note: Registered modules creating in every Metal instance
