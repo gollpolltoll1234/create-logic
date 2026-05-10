@@ -68,7 +68,7 @@ public class CodeEditorWidget extends AbstractWidget {
             String line = lines[i];
             int lineY = textY + i * (font.lineHeight + 2);
 
-            if (lineY > getY() && lineY < getY() + height) {
+            if (lineY > getY() && lineY + font.lineHeight < getY() + height) {
                 renderSelection(graphics, line, i, textX, lineY);
                 drawLineWithSpaces(graphics, line, textX, lineY);
             }
@@ -119,6 +119,7 @@ public class CodeEditorWidget extends AbstractWidget {
         int[] cursor = getCursorPosition(cursorPos);
         int cursorX = getX() + 4 + font.width(cursor[1] == 0 ? "" : getTextUpToCursor(cursorPos, cursor[0], cursor[1]));
         int cursorY = getY() + 4 - scrollOffset + cursor[0] * (font.lineHeight + 2);
+        if (cursorY > getY() + height || cursorY < getY()) return;
         graphics.fill(cursorX, cursorY, cursorX + 2, cursorY + font.lineHeight, 0xFFFFFFFF);
     }
 

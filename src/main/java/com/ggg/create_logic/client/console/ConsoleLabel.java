@@ -37,7 +37,7 @@ public class ConsoleLabel extends AbstractWidget {
         int textY = getY() + 4 - scrollOffset;
         for (int row = 0; row < messages.size(); row++) {
             int lineY = textY + row * (font.lineHeight + 2);
-            if (lineY > getY() && lineY < getY() + height) {
+            if (lineY > getY() && lineY + font.lineHeight < getY() + height) {
                 ConsoleModule.ConsoleMessage msg = messages.get(row);
                 int color = msg.type() == ConsoleModule.MessageType.INFO ? Color.WHITE.getRGB() : msg.type() == ConsoleModule.MessageType.WARN ? Color.YELLOW.getRGB() : Color.RED.getRGB();
                 graphics.drawString(font, Component.literal(msg.content()), textX, lineY, color);

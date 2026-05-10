@@ -1,6 +1,5 @@
 package com.ggg.create_logic.metal_modules;
 
-import com.ggg.create_logic.ModMain;
 import com.ggg.create_logic.lexer.MetalLexer;
 import com.ggg.create_logic.metal.Metal;
 import com.google.common.collect.ImmutableList;

@@ -65,7 +65,6 @@ public class ComputerBlockEntity extends PeripheralSmartBlockEntity {
     public void stop(){
         isActive = false;
         consoleMessages = null;
-        notifyUpdate();
         metal.stop();
     }
     @Override
@@ -109,7 +108,7 @@ public class ComputerBlockEntity extends PeripheralSmartBlockEntity {
                 tags.add(tag);
             }
             nbt.put("out",tags);
-        }
+        } else if(isPacket && metal.isRunning()) nbt.put("out",new ListTag());
     }
 
     @Override
