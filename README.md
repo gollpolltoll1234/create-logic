@@ -167,44 +167,44 @@ Metal.Script scr = new Metal.Script(RunContext.RUN,new Metal.Script.CodeBlock(Me
 Metal.MetalVariable result = scr.execute(args, operationsLimit(long));
 
 # Addons API: Modules
-> Since **0.0.6** version added Metal.MetalModule, there is API:
-> public class YourModuleName extends Metal.MetalModule {
->  public YourModuleName(Metal metal) {
->    super(metal);
->  }
->  @Override
->  protected void onStart(){
->    // on computer start
->  }
->  @Override
->  protected void onStop(){
->    // on computer stop
->  }
->  @Override
->  protected void onNext(Metal.Script script, String cmd, Metal.Script.Bracket head) {
->    // script executes function
->  }
->  @Override
->  protected boolean handleAdvanced(Metal.Script script, String cmd, Metal.Script.Bracket head) {
->    // function intercept, you can add or overwrite built-in functions: return true - intercept, false - continue
->  }
-> }
-> MetalModule.evaluate(Script script,String expr) - protected method, wrapper to private Script.evaluate(String expr)
-> MetalModule.putVariable(String name, MetalVariable var) - protected method, wrapper to private Metal.putVariable(String name, MetalVariable var)
-> MetalModule.getVariable(Script script, String name) - protected method, wrapper to private Script.getVariable (auto global or local)
-> Map<String,MetalVariable> getDynamicLocalVariables(Script script) - getter, Script.DYNAMIC_LOCAL_VARIABLES (created by MAKE_LOCAL_VAR)
-> Map<String,MetalVariable> getLocalVariables(Script script) - getter, Script.LOCAL_VARIABLES (system arguments)
-> Map<String,MetalVariable> getGlobalVariables() - getter, Metal.VARIABLES (created by MAKE_VAR or MAKE_ITEM_VAR in INIT)
+- Since **0.0.6** version added Metal.MetalModule, there is API:
+- public class YourModuleName extends Metal.MetalModule {
+-  public YourModuleName(Metal metal) {
+-    super(metal);
+-  }
+-  @Override
+-  protected void onStart(){
+-    // on computer start
+-  }
+-  @Override
+-  protected void onStop(){
+-    // on computer stop
+-  }
+-  @Override
+-  protected void onNext(Metal.Script script, String cmd, Metal.Script.Bracket head) {
+-    // script executes function
+-  }
+-  @Override
+-  protected boolean handleAdvanced(Metal.Script script, String cmd, Metal.Script.Bracket head) {
+-    // function intercept, you can add or overwrite built-in functions: return true - intercept, false - continue
+-  }
+- }
+- MetalModule.evaluate(Script script,String expr) - protected method, wrapper to private Script.evaluate(String expr)
+- MetalModule.putVariable(String name, MetalVariable var) - protected method, wrapper to private Metal.putVariable(String name, MetalVariable var)
+- MetalModule.getVariable(Script script, String name) - protected method, wrapper to private Script.getVariable (auto global or local)
+- Map<String,MetalVariable> getDynamicLocalVariables(Script script) - getter, Script.DYNAMIC_LOCAL_VARIABLES (created by MAKE_LOCAL_VAR)
+- Map<String,MetalVariable> getLocalVariables(Script script) - getter, Script.LOCAL_VARIABLES (system arguments)
+- Map<String,MetalVariable> getGlobalVariables() - getter, Metal.VARIABLES (created by MAKE_VAR or MAKE_ITEM_VAR in INIT)
 
 registration:
-> // somewhere in static {...}
+- // somewhere in static {...}
 >Metal.registerModule("your_module_name",YourModuleName.class);
 
 using in JFunctions or another modules, or somewhere else:
 
-> Metal metal = // Your method to get Metal object
-> if(metal.getModule("your_module_name") instanceof YourModuleName yourModule) {
->  // if you make method, for example, helloWorld() in your module
->  yourModule.helloWorld();
-> }
->> Note: Registered modules creating in every Metal instance
+- Metal metal = // Your method to get Metal object
+- if(metal.getModule("your_module_name") instanceof YourModuleName yourModule) {
+-  // if you make method, for example, helloWorld() in your module
+-  yourModule.helloWorld();
+- }
+> Note: Registered modules creating in every Metal instance
