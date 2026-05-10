@@ -181,6 +181,9 @@ Metal.MetalVariable result = scr.execute(args, operationsLimit(long));
 -  protected void onStop(){
 -    // on computer stop
 -  }
+-  protected void onServerTick() {
+-    // on every server tick
+-  }
 -  @Override
 -  protected void onNext(Metal.Script script, String cmd, Metal.Script.Bracket head) {
 -    // script executes function
