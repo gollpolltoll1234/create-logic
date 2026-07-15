@@ -1396,7 +1396,7 @@ public class Metal {
             
             List<MetalVariable> vars = new ArrayList<>(Collections.nCopies(args.size(), null));
             AtomicInteger completed = new AtomicInteger(0);
-            AtomicBoolean done = new AtomicBoolean(false); // защита от двойного завершения
+            AtomicBoolean done = new AtomicBoolean(false);
             
             for (int i = 0; i < args.size(); i++) {
                 int index = i;
