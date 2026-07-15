@@ -1,8 +1,8 @@
 package com.ggg.create_logic.blocks;
 
+import com.ggg.create_logic.ModMain;
 import com.ggg.create_logic.ModRegistry;
 import com.ggg.create_logic.blockentities.ComputerBlockEntity;
-import com.ggg.create_logic.client.ComputerScreen;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -23,14 +23,15 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.phys.BlockHitResult;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class ComputerBlock extends BaseEntityBlock {
     public static final BooleanProperty ACTIVATED = BooleanProperty.create("activated");
     public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
     public static final MapCodec<ComputerBlock> CODEC = simpleCodec(ComputerBlock::new);
+    private static Class<?> computerScreenClass = null;
+    private static Class<?> consoleScreenClass = null;
     public ComputerBlock(Properties properties) {
         super(properties);
         this.registerDefaultState(this.stateDefinition.any()
@@ -51,30 +52,38 @@ public class ComputerBlock extends BaseEntityBlock {
     }
 
     @Override
-    public RenderShape getRenderShape(BlockState state) {
+    public @NotNull RenderShape getRenderShape(@NotNull BlockState state) {
         return RenderShape.MODEL;
     }
 
     @Nullable
     @Override
-    public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
+    public BlockEntity newBlockEntity(@NotNull BlockPos pos, @NotNull BlockState state) {
         return new ComputerBlockEntity(pos, state);
     }
 
     @Override
-    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hitResult) {
+    protected @NotNull InteractionResult useWithoutItem(@NotNull BlockState state, Level level, @NotNull BlockPos pos, @NotNull Player player, @NotNull BlockHitResult hitResult) {
         if (level.isClientSide) {
+            if (computerScreenClass == null) try {
+                computerScreenClass = Class.forName("com.ggg.create_logic.client.ComputerScreen");
+                consoleScreenClass = Class.forName("com.ggg.create_logic.client.ConsoleScreen");
+            } catch (ClassNotFoundException e) {
+                ModMain.LOGGER.warn(e.getLocalizedMessage());
+            }
             if (player.isShiftKeyDown()) return InteractionResult.SUCCESS;
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof ComputerBlockEntity computerBE) {
-                openComputerScreen(computerBE);
+                if (computerBE.isActive())
+                    openConsoleScreen(computerBE);
+                else
+                    openComputerScreen(computerBE);
             }
             return InteractionResult.SUCCESS;
         }
 
         BlockEntity be = level.getBlockEntity(pos);
         if (be instanceof ComputerBlockEntity computer) {
-
             if (player.isShiftKeyDown()) {
                 if (computer.getMetal().isRunning()) {
                     computer.stop();
@@ -90,13 +99,26 @@ public class ComputerBlock extends BaseEntityBlock {
 
         return InteractionResult.CONSUME;
     }
-    @OnlyIn(Dist.CLIENT)
     private void openComputerScreen(ComputerBlockEntity be) {
-        net.minecraft.client.Minecraft.getInstance().setScreen(new ComputerScreen(be));
+        if (computerScreenClass != null)
+            try {
+                computerScreenClass.getMethod("setScreen",ComputerBlockEntity.class).invoke(null,be);
+            } catch (Exception e) {
+                ModMain.LOGGER.warn(e.getLocalizedMessage());
+            }
+    }
+    private void openConsoleScreen(ComputerBlockEntity be) {
+        if (consoleScreenClass != null) {
+            try {
+                consoleScreenClass.getMethod("setScreen",ComputerBlockEntity.class).invoke(null,be);
+            } catch (Exception e) {
+                ModMain.LOGGER.warn(e.getLocalizedMessage());
+            }
+        }
     }
     @Nullable
     @Override
-    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
+    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(@NotNull Level level, @NotNull BlockState state, @NotNull BlockEntityType<T> type) {
         return createTickerHelper(
                 type,
                 ModRegistry.COMPUTER_BE.get(),
@@ -106,7 +128,7 @@ public class ComputerBlock extends BaseEntityBlock {
 
 
     @Override
-    protected MapCodec<? extends BaseEntityBlock> codec() {
+    protected @NotNull MapCodec<? extends BaseEntityBlock> codec() {
         return CODEC;
     }
 }
