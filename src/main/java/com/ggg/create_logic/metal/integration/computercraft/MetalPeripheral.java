@@ -21,8 +21,12 @@ public class MetalPeripheral extends BaseMetalPeripheral {
         if (!(blockEntity instanceof ComputerBlockEntity computer))  return 0.0;
         List<Metal.MetalVariable> metalArgs = new ArrayList<>();
         if (args != null) {
-            for (Object arg : args.getAll()) {
-                if (arg instanceof String) continue;
+            for (int i = 0; i < args.getAll().length; i++) {
+                Object arg = args.getAll()[i];
+                if (arg instanceof String str) {
+                    metalArgs.add(new Metal.MetalVariable(str));
+                    continue;
+                }
                 Metal.VariableType type = Metal.VariableType.DOUBLE;
                 double raw = 0.0;
                 if (arg instanceof Number) {
